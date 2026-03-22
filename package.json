@@ -1,0 +1,48 @@
+{
+  "name": "rk-ellite",
+  "version": "1.0.0",
+  "description": "RK Ellite - Professional Restaurant Management System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "client": "cd frontend && npm start",
+    "server": "nodemon backend/server.js",
+    "build": "cd frontend && npm run build",
+    "install-all": "npm install && cd frontend && npm install",
+    "seed": "node backend/seedDatabase.js",
+    "seed:categories": "node backend/seedCategories.js"
+  },
+  "keywords": [
+    "restaurant",
+    "pos",
+    "management",
+    "ordering",
+    "inventory"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.35.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express-validator": "^7.0.1",
+    "nodemailer": "^6.9.7",
+    "qrcode": "^1.5.3",
+    "stripe": "^14.9.0",
+    "socket.io": "^4.6.0",
+    "uuid": "^9.0.1",
+    "multer": "^1.4.5-lts.1",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "moment": "^2.29.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
