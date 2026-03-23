@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 // @access  Public
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await MenuCategory.findAll({
+    let categories = await MenuCategory.findAll({
       order: [['sortOrder', 'ASC'], ['name', 'ASC']],
       raw: true
     });
@@ -20,10 +20,21 @@ exports.getCategories = async (req, res) => {
       });
       const names = fromMenuItems.map(c => c.category).filter(Boolean);
       const uniqueNames = [...new Set(names)];
-      return res.json({
-        success: true,
-        data: uniqueNames.map((name, i) => ({ id: null, name, sortOrder: i }))
-      });
+
+      if (uniqueNames.length > 0) {
+        await MenuCategory.bulkCreate(
+          uniqueNames.map((name, i) => ({
+            name,
+            sortOrder: i
+          })),
+          { ignoreDuplicates: true }
+        );
+
+        categories = await MenuCategory.findAll({
+          order: [['sortOrder', 'ASC'], ['name', 'ASC']],
+          raw: true
+        });
+      }
     }
 
     res.json({
