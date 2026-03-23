@@ -29,7 +29,8 @@ User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
 AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Table and Order associations
-Table.hasOne(Order, { foreignKey: 'id', sourceKey: 'currentOrderId', as: 'currentOrder' });
+// Table.currentOrderId stores active order reference.
+Table.belongsTo(Order, { foreignKey: 'currentOrderId', as: 'currentOrder' });
 Order.hasMany(Table, { foreignKey: 'currentOrderId', as: 'tables' });
 
 // Room and Booking associations
