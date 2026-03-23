@@ -7,6 +7,19 @@ const dotenv = require('dotenv');
 const { sequelize } = require('./config/database');
 const MenuCategory = require('./models/MenuCategory');
 const InventoryDepletion = require('./models/InventoryDepletion');
+const {
+  User,
+  Order,
+  MenuItem,
+  Customer,
+  Reservation,
+  Schedule,
+  Table,
+  InventoryItem,
+  AuditLog,
+  Room,
+  Booking
+} = require('./models');
 const http = require('http');
 const socketIo = require('socket.io');
 const logger = require('./utils/logger');
@@ -145,14 +158,28 @@ const startServer = async () => {
       host: process.env.DB_HOST
     });
 
-    // Sync database (use { force: false } in production)
-    // Note: Database already seeded, skipping sync to avoid ENUM alteration issues
-    // logger.info('Synchronizing database models...');
-    // await sequelize.sync({ force: false });
-    // logger.info('✓ Database synchronized');
-    await MenuCategory.sync();
-    await InventoryDepletion.sync();
-    logger.info('✓ Using existing database schema');
+    // Ensure required tables exist without altering existing schema.
+    // This prevents runtime 500s on partially seeded databases.
+    const syncModels = [
+      User,
+      Customer,
+      MenuCategory,
+      MenuItem,
+      Table,
+      Order,
+      Reservation,
+      Schedule,
+      InventoryItem,
+      InventoryDepletion,
+      AuditLog,
+      Room,
+      Booking
+    ];
+
+    for (const model of syncModels) {
+      await model.sync();
+    }
+    logger.info('✓ Required database tables verified');
 
     // Start server
     server.listen(PORT, () => {

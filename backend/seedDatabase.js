@@ -1,5 +1,6 @@
 const { sequelize } = require('./config/database');
 const User = require('./models/User');
+const Order = require('./models/Order');
 const MenuItem = require('./models/MenuItem');
 const InventoryItem = require('./models/InventoryItem');
 const Table = require('./models/Table');
