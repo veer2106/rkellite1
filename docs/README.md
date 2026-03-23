@@ -13,6 +13,8 @@ docs/
 ├── setup/                    # Installation & Setup Guides
 ├── menu-management/          # Menu Management Features
 ├── pos-system/               # Point of Sale System
+├── tables/                   # Table Management
+├── user-guides/              # Captain, Supervisor & Lodge Guides
 ├── deployment/               # Deployment & DevOps
 ├── architecture/             # System Architecture
 ├── features/                 # Feature Documentation
@@ -121,6 +123,35 @@ Point of Sale system documentation and guides.
 
 ---
 
+### 🪑 [Tables](tables/)
+Table management, room configuration, and section assignments.
+
+| Document | Description |
+|----------|-------------|
+| [Table Management Documentation](tables/TABLE_MANAGEMENT_DOCUMENTATION.md) | Complete table management guide |
+| [Table Management Guide](tables/TABLE_MANAGEMENT_GUIDE.md) | Quick table guide |
+| [Table System Architecture](tables/TABLE_SYSTEM_ARCHITECTURE.md) | Technical architecture |
+
+**Start here if:** You need to manage tables or room configuration.
+
+---
+
+### 👥 [User Guides](user-guides/)
+Guides for Captain, Supervisor, and Lodge management roles.
+
+| Document | Description |
+|----------|-------------|
+| [Lodge Management Guide](user-guides/LODGE_MANAGEMENT_GUIDE.md) | Complete lodge operations guide |
+| [Supervisor User Guide](user-guides/SUPERVISOR_USER_GUIDE.md) | Supervisor role documentation |
+| [Captain User Documentation](user-guides/CAPTAIN_USER_DOCUMENTATION.md) | Captain role guide |
+| [Captain Users Summary](user-guides/CAPTAIN_USERS_SUMMARY.md) | Captain overview |
+| [Captain Login Fix](user-guides/CAPTAIN_LOGIN_FIX.md) | Captain login troubleshooting |
+| [Captain Restrictions Complete](user-guides/CAPTAIN_RESTRICTIONS_COMPLETE.md) | Captain permission details |
+
+**Start here if:** You're a Captain, Supervisor, or need lodge management info.
+
+---
+
 ### 🚀 [Deployment](deployment/)
 Production deployment, CI/CD, and DevOps documentation.
 
@@ -184,6 +215,9 @@ Common issues and solutions.
 | Document | Description |
 |----------|-------------|
 | [Login Troubleshooting](troubleshooting/LOGIN_TROUBLESHOOTING.md) | Login issues & fixes |
+| [Fix Login Issue](troubleshooting/FIX_LOGIN_ISSUE.md) | Login fix guide |
+| [Browser Login Fix](troubleshooting/BROWSER_LOGIN_FIX.md) | Browser-specific login fixes |
+| [Troubleshooting Rooms](troubleshooting/TROUBLESHOOTING_ROOMS.md) | Room/table issues |
 
 **Start here if:** You're experiencing issues with the system.
 
@@ -225,6 +259,12 @@ Quick guides and current system status.
 **...use the POS system**
 → [POS Quick Reference](pos-system/POS_QUICK_REFERENCE.md)
 
+**...manage tables**
+→ [Table Management Guide](tables/TABLE_MANAGEMENT_GUIDE.md)
+
+**...learn Captain/Supervisor roles**
+→ [User Guides](user-guides/LODGE_MANAGEMENT_GUIDE.md)
+
 **...filter by section**
 → [Section Filter Guide](menu-management/MENU_SECTION_FILTER_GUIDE.md)
 
@@ -248,7 +288,7 @@ Quick guides and current system status.
 ## 📊 Documentation Statistics
 
 - **Total Documents**: 50+
-- **Categories**: 8
+- **Categories**: 10
 - **Setup Guides**: 3
 - **Menu Guides**: 14
 - **POS Guides**: 7
@@ -310,7 +350,7 @@ Quick guides and current system status.
 
 ## 🔄 Keeping Documentation Updated
 
-This documentation is actively maintained. Last updated: **March 15, 2026**
+This documentation is actively maintained. Last updated: **March 22, 2025**
 
 ---
 

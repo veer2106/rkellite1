@@ -10,11 +10,12 @@ Complete overview of the documentation organization.
 restaurant-cafe/
 │
 ├── README.md                          # Main project README
-├── INDEX.md                           # Project index
+├── TODO.md                            # Task list
 │
 └── docs/                              # 📚 ALL DOCUMENTATION HERE
     │
     ├── README.md                      # Documentation index (START HERE!)
+    ├── INDEX.md                       # Project index
     │
     ├── setup/                         # 🔧 Setup & Installation
     │   ├── README.md
@@ -41,7 +42,7 @@ restaurant-cafe/
     │   ├── MENU_FIX_QUICK.md
     │   └── MENU_STATUS.md
     │
-    ├── pos-system/                    # 🛒 POS System (7 docs)
+    ├── pos-system/                    # 🛒 POS System
     │   ├── README.md
     │   ├── POS_UPDATE_DOCUMENTATION.md
     │   ├── POS_QUICK_REFERENCE.md
@@ -52,7 +53,22 @@ restaurant-cafe/
     │   ├── ORDERS_SECTION_TABLE_UPDATE.md
     │   └── SECTION_TABLE_QUICK_GUIDE.md
     │
-    ├── deployment/                    # 🚀 Deployment & DevOps (13 docs)
+    ├── tables/                        # 🪑 Table Management
+    │   ├── README.md
+    │   ├── TABLE_MANAGEMENT_DOCUMENTATION.md
+    │   ├── TABLE_MANAGEMENT_GUIDE.md
+    │   └── TABLE_SYSTEM_ARCHITECTURE.md
+    │
+    ├── user-guides/                   # 👥 Captain, Supervisor & Lodge
+    │   ├── README.md
+    │   ├── LODGE_MANAGEMENT_GUIDE.md
+    │   ├── SUPERVISOR_USER_GUIDE.md
+    │   ├── CAPTAIN_USER_DOCUMENTATION.md
+    │   ├── CAPTAIN_USERS_SUMMARY.md
+    │   ├── CAPTAIN_LOGIN_FIX.md
+    │   └── CAPTAIN_RESTRICTIONS_COMPLETE.md
+    │
+    ├── deployment/                    # 🚀 Deployment & DevOps
     │   ├── README.md
     │   ├── PRODUCTION_DEPLOYMENT_RUNBOOK.md
     │   ├── DEPLOYMENT_STEPS.md
@@ -104,9 +120,11 @@ restaurant-cafe/
 | **Deployment** | 13 | Production deployment, CI/CD |
 | **Architecture** | 3 | System design, API docs |
 | **Features** | 4 | Feature lists, summaries |
-| **Troubleshooting** | 1 | Issue resolution |
+| **Tables** | 3 | Table & room management |
+| **User Guides** | 6 | Captain, Supervisor, Lodge |
+| **Troubleshooting** | 4 | Issue resolution |
 | **Quick Reference** | 5 | Quick guides, status |
-| **TOTAL** | **50+** | Complete documentation |
+| **TOTAL** | **60+** | Complete documentation |
 
 ---
 
@@ -297,9 +315,9 @@ docs/troubleshooting/LOGIN_TROUBLESHOOTING.md
 
 ---
 
-**Last Updated:** March 15, 2026  
-**Total Documentation Files:** 50+  
-**Documentation Categories:** 8
+**Last Updated:** March 22, 2025  
+**Total Documentation Files:** 60+  
+**Documentation Categories:** 10
 
 ---
 

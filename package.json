@@ -9,6 +9,7 @@
     "client": "cd frontend && npm start",
     "server": "nodemon backend/server.js",
     "build": "cd frontend && npm run build",
+    "build:prod": "cd frontend && REACT_APP_API_URL=/api npm run build && cd .. && rm -rf public && mkdir -p public && cp -r frontend/build/. public/",
     "install-all": "npm install && cd frontend && npm install",
     "seed": "node backend/seedDatabase.js",
     "seed:categories": "node backend/seedCategories.js"

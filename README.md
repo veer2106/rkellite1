@@ -69,6 +69,28 @@ npm run server
 npm run client
 ```
 
+### Production on EC2 (no Docker)
+
+Use **Node + PostgreSQL + Nginx + PM2** on the server. Full steps:
+
+- **[docs/deployment/DEPLOY_HOST_NO_DOCKER.md](docs/deployment/DEPLOY_HOST_NO_DOCKER.md)**
+
+Quick paths:
+
+```bash
+# On server after clone: install deps, build, PM2
+cp .env.host.example .env   # then edit DB password, JWT, URLs
+npm run build:prod
+pm2 start ecosystem.config.cjs
+```
+
+```bash
+# From your laptop (SSH): clone/update + install script
+export EC2_IP=YOUR_IP
+export SSH_KEY=./cafe.pem
+bash scripts/deploy-native-ec2.sh
+```
+
 ## 🚀 Usage
 
 ### Access Points

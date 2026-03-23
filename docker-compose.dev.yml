@@ -1,3 +1,7 @@
+# Dev environment - runs alongside prod on SAME EC2 instance
+# Uses host nginx (no nginx container) - configure nginx to route dev subdomain to ports 5005, 3002
+# Usage: docker compose -p rkellite-dev -f docker-compose.dev.yml --env-file .env.dev up -d
+
 version: '3.8'
 
 services:
@@ -5,15 +9,20 @@ services:
     image: postgres:15-alpine
     container_name: restaurant_db_dev
     environment:
-      POSTGRES_DB: restaurant_db_dev
-      POSTGRES_USER: cafe_user
-      POSTGRES_PASSWORD: dev_password_123
+      POSTGRES_DB: ${DB_NAME:-restaurant_db_dev}
+      POSTGRES_USER: ${DB_USER:-cafe_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password_123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     ports:
-      - "5433:5432"  # Different local port
+      - "5433:5432"  # Different port from prod (5432)
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
+      - ./backend/config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cafe_user -d restaurant_db_dev"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cafe_user} -d ${DB_NAME:-restaurant_db_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
     restart: unless-stopped
@@ -21,7 +30,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: restaurant_cache_dev
-    command: redis-server --appendonly yes --requirepass dev_redis_password
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-dev_redis_password}
     ports:
       - "6380:6379"
     volumes:
@@ -44,15 +53,15 @@ services:
       PORT: 5005
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: restaurant_db_dev
-      DB_USER: cafe_user
-      DB_PASSWORD: dev_password_123
+      DB_NAME: ${DB_NAME:-restaurant_db_dev}
+      DB_USER: ${DB_USER:-cafe_user}
+      DB_PASSWORD: ${DB_PASSWORD:-dev_password_123}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: dev_redis_password
-      API_URL: http://localhost:5005
-      FRONTEND_URL: http://localhost:3002
-      JWT_SECRET: dev_jwt_secret_change_me
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_password}
+      API_URL: ${API_URL:-https://dev.YOUR_DOMAIN.com}
+      FRONTEND_URL: ${FRONTEND_URL:-https://dev.YOUR_DOMAIN.com}
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_me}
       LOG_LEVEL: debug
     ports:
       - "5005:5005"
@@ -69,12 +78,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5005/api/health"]
-    develop:
-      watch:
-        - action: sync
-          path: ./backend
-          target: /app/backend
-    command: npm run dev  # Assume dev script
+    command: sh -c "npm install && npm run dev"
 
   frontend:
     image: node:20-alpine
@@ -84,28 +88,12 @@ services:
       - ./frontend:/app
     ports:
       - "3002:3002"
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install && PORT=3002 npm run start"
     environment:
-      VITE_API_URL: http://localhost:5005/api
-      VITE_WS_URL: ws://localhost:5005
+      REACT_APP_API_URL: /api
+      CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - api
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    container_name: restaurant_nginx_dev
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro  # Need to create
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - api
-      - frontend
     networks:
       - app-network
     restart: unless-stopped

@@ -6,6 +6,7 @@ yarn-error.log*
 
 # Production builds
 frontend/build/
+public/
 dist/
 
 # Environment variables
