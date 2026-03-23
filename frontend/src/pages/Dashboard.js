@@ -89,22 +89,30 @@ const Dashboard = () => {
     return <div className="text-center py-12">Loading...</div>;
   }
 
+  const safePercentChange = (currentValue, previousValue) => {
+    const current = Number(currentValue || 0);
+    const previous = Number(previousValue || 0);
+
+    if (!Number.isFinite(current) || !Number.isFinite(previous) || previous <= 0) {
+      return 0;
+    }
+
+    const change = ((current - previous) / previous) * 100;
+    return Number.isFinite(change) ? change.toFixed(1) : 0;
+  };
+
   const statsCards = [
     {
       name: "Today's Orders",
       value: stats?.today?.orders || 0,
-      change: stats?.yesterday?.orders 
-        ? ((stats.today.orders - stats.yesterday.orders) / stats.yesterday.orders * 100).toFixed(1)
-        : 0,
+      change: safePercentChange(stats?.today?.orders, stats?.yesterday?.orders),
       color: 'bg-blue-500',
       link: '/orders'
     },
     {
       name: "Today's Revenue",
       value: `₹${stats?.today?.revenue || 0}`,
-      change: stats?.yesterday?.revenue
-        ? ((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue * 100).toFixed(1)
-        : 0,
+      change: safePercentChange(stats?.today?.revenue, stats?.yesterday?.revenue),
       color: 'bg-green-500',
       link: '/reports'
     },
