@@ -9,7 +9,8 @@ const {
   deleteOrder,
   getOrderStats,
   addItemsToOrder,
-  getOrderForTable
+  getOrderForTable,
+  getPosAccepting
 } = require('../controllers/orderController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -18,6 +19,7 @@ router.route('/')
   .post(protect, createOrder);
 
 router.get('/stats', protect, getOrderStats);
+router.get('/pos-accepting', protect, getPosAccepting);
 router.get('/by-table', protect, getOrderForTable);
 
 router.post('/:id/add-items', protect, addItemsToOrder);

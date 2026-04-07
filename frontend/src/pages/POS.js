@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import { toast } from 'react-toastify';
+import BillPreviewModal from '../components/BillPreviewModal';
 import { PlusIcon, MinusIcon, TrashIcon, MagnifyingGlassIcon, TableCellsIcon } from '@heroicons/react/24/outline';
 
 const POS = () => {
@@ -32,12 +33,30 @@ const POS = () => {
   const [selectedTableId, setSelectedTableId] = useState(null);
   const [currentOrderId, setCurrentOrderId] = useState(null); // When adding to occupied table
   const [loadingTableOrder, setLoadingTableOrder] = useState(false); // Loading order for occupied table
+  const [billPreviewOrder, setBillPreviewOrder] = useState(null);
+  const [posAccepting, setPosAccepting] = useState(true);
+
+  const fetchPosAccepting = async () => {
+    try {
+      const { data } = await api.get('/orders/pos-accepting');
+      setPosAccepting(!!data.data?.acceptingOrders);
+    } catch {
+      setPosAccepting(true);
+    }
+  };
 
   useEffect(() => {
     fetchMenuItems();
     fetchCategories();
     fetchAllTables();
+    fetchPosAccepting();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onFocus = () => fetchPosAccepting();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   // Update section when user changes
@@ -238,6 +257,46 @@ const POS = () => {
 
   const { subtotal, tax, total } = calculateTotal();
 
+  const handlePrintBill = async () => {
+    if (currentOrderId) {
+      try {
+        const { data } = await api.get(`/orders/${currentOrderId}`);
+        if (data?.data) setBillPreviewOrder(data.data);
+        else toast.error('Could not load order for printing');
+      } catch (e) {
+        toast.error(e.response?.data?.message || 'Failed to load order for printing');
+      }
+      return;
+    }
+    if (cart.length === 0) {
+      toast.error('Add items to the cart or select a table with an open order');
+      return;
+    }
+    const draft = {
+      orderNumber: 'Draft',
+      orderType,
+      section: selectedSection,
+      tableNumber: orderType === 'dine-in' ? tableNumber : null,
+      customerName: customerInfo.name || undefined,
+      customerPhone: customerInfo.phone || undefined,
+      items: cart.map((i) => ({
+        menuItemId: i.menuItemId,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity
+      })),
+      subtotal,
+      tax,
+      deliveryFee: 0,
+      total,
+      paymentMethod: 'pending',
+      paymentStatus: '—',
+      status: 'draft',
+      createdAt: new Date().toISOString()
+    };
+    setBillPreviewOrder(draft);
+  };
+
   // Filter items by section first, then by category, then by search
   const sectionFilteredItems = menuItems.filter(item => {
     // Show items that are assigned to this section or to 'both'
@@ -262,9 +321,9 @@ const POS = () => {
   // For occupied tables, wait until we have currentOrderId; for available tables, selectedTableId is enough
   const selectedTable = allTables.find(t => t.id === selectedTableId);
   const isOccupiedTable = selectedTable?.status === 'occupied';
-  const canAddItems = orderType !== 'dine-in'
+  const canAddItems = posAccepting && (orderType !== 'dine-in'
     ? true
-    : selectedTableId && (!isOccupiedTable || currentOrderId) && !loadingTableOrder;
+    : selectedTableId && (!isOccupiedTable || currentOrderId) && !loadingTableOrder);
   const getTableStatusStyle = (status) => {
     switch (status) {
       case 'available': return 'bg-green-50 border-green-400 hover:bg-green-100 hover:border-green-500 hover:shadow-md cursor-pointer';
@@ -277,6 +336,17 @@ const POS = () => {
 
   return (
     <div className="h-[calc(100vh-200px)]">
+      <BillPreviewModal
+        isOpen={!!billPreviewOrder}
+        order={billPreviewOrder}
+        onClose={() => setBillPreviewOrder(null)}
+      />
+      {!posAccepting && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-900 px-4 py-3 text-sm">
+          <strong>Business day is closed.</strong> New orders and adding items to orders are disabled until an admin or
+          manager opens the day from <span className="font-medium">Reports → Daily revenue</span>.
+        </div>
+      )}
       {/* Compact Header for Tablet Landscape - Reduced vertical space */}
       <div className="flex flex-wrap justify-between items-center gap-3 mb-2 md:mb-3 lg:mb-6">
         <h1 className="text-xl sm:text-2xl md:text-2xl lg:text-3xl font-bold text-gray-900">POS</h1>
@@ -377,7 +447,9 @@ const POS = () => {
             <div className="py-16 text-center">
               <TableCellsIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500 font-medium">
-                {loadingTableOrder
+                {!posAccepting
+                  ? 'POS is locked — the business day is closed.'
+                  : loadingTableOrder
                   ? 'Loading order for table...'
                   : isOccupiedTable && selectedTableId
                     ? 'Could not load order for this table. Try selecting again or choose another table.'
@@ -537,14 +609,27 @@ const POS = () => {
             </div>
           </div>
 
-          {/* Submit Button */}
-          <button
-            onClick={handleSubmitOrder}
-            disabled={cart.length === 0}
-            className="mt-4 w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {currentOrderId ? 'Add Items to Order' : 'Place Order'}
-          </button>
+          {/* Submit + print */}
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={handlePrintBill}
+              disabled={
+                cart.length === 0 &&
+                !(currentOrderId && !loadingTableOrder)
+              }
+              className="w-full border border-gray-300 bg-white text-gray-800 py-2.5 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              Print bill
+            </button>
+            <button
+              onClick={handleSubmitOrder}
+              disabled={cart.length === 0 || !posAccepting}
+              className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {currentOrderId ? 'Add Items to Order' : 'Place Order'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

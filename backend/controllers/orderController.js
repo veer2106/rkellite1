@@ -1,6 +1,19 @@
-const { Order, MenuItem, Customer, Table } = require('../models');
+const { Order, MenuItem, Customer, Table, SystemSetting } = require('../models');
 const { Op } = require('sequelize');
 const logger = require('../utils/logger');
+
+async function assertPosAcceptingNewOrders(res) {
+  const row = await SystemSetting.findByPk('pos_accepting_orders');
+  if (row && row.value === 'false') {
+    res.status(403).json({
+      success: false,
+      message:
+        'The business day is closed. New orders cannot be placed until an admin or manager opens the day from Reports → Daily revenue.'
+    });
+    return false;
+  }
+  return true;
+}
 
 // Helper function to calculate time spent in each state
 const calculateOrderTimeline = (order) => {
@@ -168,6 +181,8 @@ exports.createOrder = async (req, res) => {
       paymentMethod,
       notes
     } = req.body;
+
+    if (!(await assertPosAcceptingNewOrders(res))) return;
 
     // Section-based access control for captains
     if (req.user.role === 'captain' && req.user.section) {
@@ -376,6 +391,8 @@ exports.addItemsToOrder = async (req, res) => {
     if (!orderId || !UUID_REGEX.test(orderId)) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
+    if (!(await assertPosAcceptingNewOrders(res))) return;
+
     const { items: newItems } = req.body;
     const order = await Order.findByPk(orderId);
 
@@ -681,6 +698,19 @@ exports.getOrderStats = async (req, res) => {
         pendingOrders
       }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Whether POS accepts new orders / add-items (day open)
+// @route   GET /api/orders/pos-accepting
+// @access  Private
+exports.getPosAccepting = async (req, res) => {
+  try {
+    const row = await SystemSetting.findByPk('pos_accepting_orders');
+    const acceptingOrders = !row || row.value !== 'false';
+    res.json({ success: true, data: { acceptingOrders } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import api from '../services/api';
 import { toast } from 'react-toastify';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { ClockIcon, UserIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import {
+  ClockIcon,
+  UserIcon,
+  DocumentTextIcon,
+  ArrowPathIcon,
+  LockClosedIcon,
+  LockOpenIcon
+} from '@heroicons/react/24/outline';
+import DailyRevenueDetailModal from '../components/DailyRevenueDetailModal';
+import { buildDailyRevenueReportHtml } from '../utils/dailyRevenueReportHtml';
 
 const Reports = () => {
+  const { user } = useSelector((state) => state.auth);
+  const canManageDay = user?.role === 'admin' || user?.role === 'manager';
+
   const [activeTab, setActiveTab] = useState('sales');
   const [salesData, setSalesData] = useState(null);
   const [menuData, setMenuData] = useState(null);
@@ -22,6 +34,11 @@ const Reports = () => {
     entityType: '',
     search: ''
   });
+  const [dailyListData, setDailyListData] = useState(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [detailModalData, setDetailModalData] = useState(null);
+  const [closeDate, setCloseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dayActionLoading, setDayActionLoading] = useState(false);
 
   useEffect(() => {
     fetchReportData();
@@ -29,6 +46,14 @@ const Reports = () => {
 
   const fetchReportData = async () => {
     try {
+      if (activeTab === 'daily') {
+        setDailyLoading(true);
+        const { data } = await api.get('/reports/daily-revenue', { params: { days: 90 } });
+        setDailyListData(data.data);
+        setDailyLoading(false);
+        return;
+      }
+
       setLoading(true);
       if (activeTab === 'sales') {
         const { data } = await api.get('/reports/sales', {
@@ -62,6 +87,79 @@ const Reports = () => {
     } catch (error) {
       toast.error('Failed to fetch report data');
       setLoading(false);
+      setDailyLoading(false);
+    }
+  };
+
+  const openDayDetail = async (date) => {
+    try {
+      const { data } = await api.get(`/reports/daily-revenue/${date}`);
+      setDetailModalData(data.data);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to load day detail');
+    }
+  };
+
+  const generateDayReportFile = async (date) => {
+    try {
+      const { data } = await api.get(`/reports/daily-revenue/${date}`);
+      const html = buildDailyRevenueReportHtml(data.data);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily-revenue-${date}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Report downloaded (open in browser to print)');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to generate report');
+    }
+  };
+
+  const handleDayClose = async (force = false) => {
+    if (!canManageDay) return;
+    if (
+      !force &&
+      !window.confirm(
+        'Close the business day? This records today’s paid revenue snapshot and blocks new POS orders until you open the day again.'
+      )
+    ) {
+      return;
+    }
+    try {
+      setDayActionLoading(true);
+      const { data } = await api.post('/reports/day-close', { date: closeDate, force });
+      toast.success(data.message);
+      await fetchReportData();
+      if (activeTab !== 'daily') setActiveTab('daily');
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Day close failed';
+      const open = e.response?.data?.data?.openOrders;
+      if (open && !force) {
+        if (window.confirm(`${msg}\n\nForce close anyway? (Not recommended.)`)) {
+          await handleDayClose(true);
+        }
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setDayActionLoading(false);
+    }
+  };
+
+  const handleDayOpen = async () => {
+    if (!canManageDay) return;
+    if (!window.confirm('Open the business day? POS will accept new orders again.')) return;
+    try {
+      setDayActionLoading(true);
+      const { data } = await api.post('/reports/day-open');
+      toast.success(data.message);
+      await fetchReportData();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to open day');
+    } finally {
+      setDayActionLoading(false);
     }
   };
 
@@ -80,18 +178,23 @@ const Reports = () => {
     }
   };
 
-  if (loading) {
+  if (loading && activeTab !== 'daily') {
     return <div className="text-center py-12">Loading reports...</div>;
   }
 
   return (
     <div>
+      <DailyRevenueDetailModal
+        isOpen={!!detailModalData}
+        data={detailModalData}
+        onClose={() => setDetailModalData(null)}
+      />
       <h1 className="text-3xl font-bold text-gray-900 mb-6">Reports & Analytics</h1>
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
-          {['sales', 'menu', 'inventory', 'history'].map((tab) => (
+        <nav className="-mb-px flex flex-wrap gap-x-6 gap-y-1">
+          {['sales', 'daily', 'menu', 'inventory', 'history'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -101,11 +204,145 @@ const Reports = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}
             >
-              {tab === 'history' ? 'Audit History' : `${tab} Report`}
+              {tab === 'history'
+                ? 'Audit History'
+                : tab === 'daily'
+                  ? 'Daily revenue'
+                  : `${tab} Report`}
             </button>
           ))}
         </nav>
       </div>
+
+      {activeTab === 'daily' && (
+        <div className="space-y-6 mb-8">
+          {dailyLoading ? (
+            <div className="text-center py-12 text-gray-500">Loading daily revenue…</div>
+          ) : (
+            <>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+                <p className="font-semibold mb-1">End of day</p>
+                <p className="mb-3">
+                  Use <strong>Close day</strong> to record a formal snapshot for the selected date and stop new POS orders.
+                  Use <strong>Open day</strong> when you are ready to take orders again. Supervisors can view this tab but
+                  only admins and managers can close or open the day.
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-amber-800 mb-1">Close date</label>
+                    <input
+                      type="date"
+                      value={closeDate}
+                      onChange={(e) => setCloseDate(e.target.value)}
+                      disabled={!canManageDay || dayActionLoading}
+                      className="px-3 py-2 border border-amber-300 rounded-md text-sm bg-white disabled:opacity-50"
+                    />
+                  </div>
+                  {canManageDay && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={dayActionLoading}
+                        onClick={() => handleDayClose(false)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-800 text-white text-sm font-medium rounded-lg hover:bg-amber-900 disabled:opacity-50"
+                      >
+                        <LockClosedIcon className="h-5 w-5" />
+                        Close day &amp; lock POS
+                      </button>
+                      <button
+                        type="button"
+                        disabled={dayActionLoading}
+                        onClick={handleDayOpen}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 border border-amber-800 text-amber-900 text-sm font-medium rounded-lg hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        <LockOpenIcon className="h-5 w-5" />
+                        Open day (unlock POS)
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fetchReportData()}
+                    disabled={dailyLoading}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-800 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ArrowPathIcon className="h-5 w-5" />
+                    Refresh
+                  </button>
+                </div>
+                {dailyListData && (
+                  <p className="mt-3 text-xs">
+                    POS status:{' '}
+                    <strong>{dailyListData.posAcceptingOrders ? 'Accepting orders' : 'Closed — no new orders'}</strong>
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Last 90 days</h3>
+                  <span className="text-xs text-gray-500">Click a row for transactions &amp; print</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium text-gray-600">Date</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-600">Revenue (paid)</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-600">Orders</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-600">Closed</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(dailyListData?.days || []).map((row) => (
+                        <tr
+                          key={row.date}
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => openDayDetail(row.date)}
+                        >
+                          <td className="px-4 py-2 font-medium text-gray-900">{row.date}</td>
+                          <td className="px-4 py-2 text-right">Rs.{Number(row.revenue).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-right">{row.orderCount}</td>
+                          <td className="px-4 py-2">
+                            {row.formallyClosed ? (
+                              <span className="text-green-700 text-xs font-medium">Yes</span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              type="button"
+                              className="text-primary-600 hover:text-primary-800 font-medium mr-3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDayDetail(row.date);
+                              }}
+                            >
+                              Detail
+                            </button>
+                            <button
+                              type="button"
+                              className="text-gray-600 hover:text-gray-900 font-medium"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                generateDayReportFile(row.date);
+                              }}
+                            >
+                              Download HTML
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Sales Report */}
       {activeTab === 'sales' && salesData && (

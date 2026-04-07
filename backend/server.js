@@ -18,7 +18,9 @@ const {
   InventoryItem,
   AuditLog,
   Room,
-  Booking
+  Booking,
+  SystemSetting,
+  DayClose
 } = require('./models');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -173,12 +175,20 @@ const startServer = async () => {
       InventoryDepletion,
       AuditLog,
       Room,
-      Booking
+      Booking,
+      SystemSetting,
+      DayClose
     ];
 
     for (const model of syncModels) {
       await model.sync();
     }
+
+    await SystemSetting.findOrCreate({
+      where: { key: 'pos_accepting_orders' },
+      defaults: { value: 'true' }
+    });
+
     logger.info('✓ Required database tables verified');
 
     // Start server

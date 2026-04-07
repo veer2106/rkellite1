@@ -1,4 +1,13 @@
-const { Order, MenuItem, Customer, InventoryItem, InventoryDepletion } = require('../models');
+const {
+  Order,
+  MenuItem,
+  Customer,
+  InventoryItem,
+  InventoryDepletion,
+  SystemSetting,
+  DayClose,
+  User
+} = require('../models');
 const { Op, fn, col } = require('sequelize');
 const { sequelize } = require('../config/database');
 
@@ -371,6 +380,314 @@ exports.getDashboardStats = async (req, res) => {
         activeOrders,
         lowStockAlerts: lowStockCount
       }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+function formatLocalYmd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function boundsForYmd(ymd) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return [start, end];
+}
+
+function aggregateOrdersForReport(orders) {
+  let totalRevenue = 0;
+  let subtotalSum = 0;
+  let taxSum = 0;
+  const byOrderType = {};
+  const byPayment = {};
+  for (const o of orders) {
+    const t = parseFloat(o.total) || 0;
+    const s = parseFloat(o.subtotal) || 0;
+    const tx = parseFloat(o.tax) || 0;
+    totalRevenue += t;
+    subtotalSum += s;
+    taxSum += tx;
+    const ot = o.orderType || 'unknown';
+    byOrderType[ot] = (byOrderType[ot] || 0) + t;
+    const pm = o.paymentMethod || 'unknown';
+    byPayment[pm] = (byPayment[pm] || 0) + t;
+  }
+  return {
+    orderCount: orders.length,
+    totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+    subtotalSum: parseFloat(subtotalSum.toFixed(2)),
+    taxSum: parseFloat(taxSum.toFixed(2)),
+    byOrderType,
+    byPayment
+  };
+}
+
+// @desc    List daily revenue (calendar days) + formal close flags
+// @route   GET /api/reports/daily-revenue
+// @access  Private (admin, manager, supervisor)
+exports.listDailyRevenue = async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 1), 366);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+    const since = new Date(today);
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+
+    const orders = await Order.findAll({
+      where: {
+        paymentStatus: 'paid',
+        status: { [Op.ne]: 'cancelled' },
+        createdAt: { [Op.between]: [since, endOfToday] }
+      },
+      attributes: ['total', 'createdAt']
+    });
+
+    const byDay = {};
+    for (const o of orders) {
+      const key = formatLocalYmd(new Date(o.createdAt));
+      if (!byDay[key]) byDay[key] = { revenue: 0, orderCount: 0 };
+      byDay[key].revenue += parseFloat(o.total || 0);
+      byDay[key].orderCount += 1;
+    }
+
+    const sinceStr = formatLocalYmd(since);
+    const closes = await DayClose.findAll({
+      where: { businessDate: { [Op.gte]: sinceStr } },
+      include: [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email'] }]
+    });
+    const closeByDate = {};
+    closes.forEach((c) => {
+      closeByDate[c.businessDate] = c;
+    });
+
+    const list = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = formatLocalYmd(d);
+      const agg = byDay[key] || { revenue: 0, orderCount: 0 };
+      const dc = closeByDate[key];
+      list.push({
+        date: key,
+        revenue: parseFloat(agg.revenue.toFixed(2)),
+        orderCount: agg.orderCount,
+        formallyClosed: !!dc,
+        closedAt: dc ? dc.closedAt : null,
+        closedBy: dc?.user
+          ? {
+              id: dc.user.id,
+              name: [dc.user.firstName, dc.user.lastName].filter(Boolean).join(' ') || dc.user.email
+            }
+          : null
+      });
+    }
+
+    const posRow = await SystemSetting.findByPk('pos_accepting_orders');
+    const posAcceptingOrders = !posRow || posRow.value !== 'false';
+
+    res.json({
+      success: true,
+      data: {
+        days: list,
+        posAcceptingOrders
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    One day's revenue + all paid transactions
+// @route   GET /api/reports/daily-revenue/:date  (YYYY-MM-DD)
+// @access  Private (admin, manager, supervisor)
+exports.getDailyRevenueDetail = async (req, res) => {
+  try {
+    const { date } = req.params;
+    const bounds = boundsForYmd(date);
+    if (!bounds) {
+      return res.status(400).json({ success: false, message: 'Invalid date. Use YYYY-MM-DD.' });
+    }
+    const [start, end] = bounds;
+
+    const dayOrders = await Order.findAll({
+      where: {
+        paymentStatus: 'paid',
+        status: { [Op.ne]: 'cancelled' },
+        createdAt: { [Op.between]: [start, end] }
+      },
+      attributes: [
+        'id',
+        'orderNumber',
+        'createdAt',
+        'total',
+        'subtotal',
+        'tax',
+        'status',
+        'paymentStatus',
+        'paymentMethod',
+        'orderType',
+        'tableNumber',
+        'section',
+        'customerName'
+      ],
+      order: [['createdAt', 'ASC']]
+    });
+
+    const summary = aggregateOrdersForReport(dayOrders);
+    const dayClose = await DayClose.findOne({
+      where: { businessDate: date },
+      include: [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email'] }]
+    });
+
+    res.json({
+      success: true,
+      data: {
+        date,
+        summary,
+        orders: dayOrders.map((o) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          createdAt: o.createdAt,
+          total: parseFloat(o.total || 0).toFixed(2),
+          subtotal: parseFloat(o.subtotal || 0).toFixed(2),
+          tax: parseFloat(o.tax || 0).toFixed(2),
+          status: o.status,
+          paymentStatus: o.paymentStatus,
+          paymentMethod: o.paymentMethod,
+          orderType: o.orderType,
+          tableNumber: o.tableNumber,
+          section: o.section,
+          customerName: o.customerName
+        })),
+        dayClose: dayClose
+          ? {
+              closedAt: dayClose.closedAt,
+              totalRevenue: parseFloat(dayClose.totalRevenue || 0).toFixed(2),
+              orderCount: dayClose.orderCount,
+              closedBy: dayClose.user
+                ? {
+                    id: dayClose.user.id,
+                    name: [dayClose.user.firstName, dayClose.user.lastName].filter(Boolean).join(' ') || dayClose.user.email
+                  }
+                : null
+            }
+          : null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Close business day: snapshot revenue, block new POS orders
+// @route   POST /api/reports/day-close
+// @access  Private (admin, manager)
+exports.postDayClose = async (req, res) => {
+  try {
+    const dateStr = req.body.date || formatLocalYmd(new Date());
+    const bounds = boundsForYmd(dateStr);
+    if (!bounds) {
+      return res.status(400).json({ success: false, message: 'Invalid date. Use YYYY-MM-DD.' });
+    }
+    const [start, end] = bounds;
+    const force = !!req.body.force;
+
+    const openOrders = await Order.count({
+      where: {
+        status: { [Op.in]: ['pending', 'confirmed', 'preparing', 'ready', 'served'] }
+      }
+    });
+
+    if (openOrders > 0 && !force) {
+      return res.status(400).json({
+        success: false,
+        message: `There are ${openOrders} open order(s) still in progress. Complete or cancel them before closing the day, or confirm with force: true.`,
+        data: { openOrders }
+      });
+    }
+
+    const dayOrders = await Order.findAll({
+      where: {
+        paymentStatus: 'paid',
+        status: { [Op.ne]: 'cancelled' },
+        createdAt: { [Op.between]: [start, end] }
+      }
+    });
+
+    const summary = aggregateOrdersForReport(dayOrders);
+    const breakdown = {
+      byOrderType: summary.byOrderType,
+      byPayment: summary.byPayment
+    };
+
+    const [record, created] = await DayClose.findOrCreate({
+      where: { businessDate: dateStr },
+      defaults: {
+        closedAt: new Date(),
+        userId: req.user.id,
+        totalRevenue: summary.totalRevenue,
+        orderCount: summary.orderCount,
+        subtotalSum: summary.subtotalSum,
+        taxSum: summary.taxSum,
+        breakdown
+      }
+    });
+
+    if (!created) {
+      await record.update({
+        closedAt: new Date(),
+        userId: req.user.id,
+        totalRevenue: summary.totalRevenue,
+        orderCount: summary.orderCount,
+        subtotalSum: summary.subtotalSum,
+        taxSum: summary.taxSum,
+        breakdown
+      });
+    }
+
+    const [posRow] = await SystemSetting.findOrCreate({
+      where: { key: 'pos_accepting_orders' },
+      defaults: { value: 'true' }
+    });
+    await posRow.update({ value: 'false' });
+
+    res.json({
+      success: true,
+      message: `Day ${dateStr} closed. POS no longer accepts new orders until the day is opened.`,
+      data: {
+        businessDate: dateStr,
+        snapshot: summary,
+        posAcceptingOrders: false
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Open business day: allow POS orders again
+// @route   POST /api/reports/day-open
+// @access  Private (admin, manager)
+exports.postDayOpen = async (req, res) => {
+  try {
+    const [posRow] = await SystemSetting.findOrCreate({
+      where: { key: 'pos_accepting_orders' },
+      defaults: { value: 'true' }
+    });
+    await posRow.update({ value: 'true' });
+    res.json({
+      success: true,
+      message: 'Day opened. POS accepts new orders.',
+      data: { posAcceptingOrders: true }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

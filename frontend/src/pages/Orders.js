@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { PrinterIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 import { toast } from 'react-toastify';
+import BillPreviewModal from '../components/BillPreviewModal';
 
 const Orders = () => {
   const { user } = useSelector(state => state.auth);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [billPreviewOrder, setBillPreviewOrder] = useState(null);
 
   // Set initial section filter based on user's role and section
   const getInitialSectionFilter = () => {
@@ -75,6 +78,11 @@ const Orders = () => {
 
   return (
     <div>
+      <BillPreviewModal
+        isOpen={!!billPreviewOrder}
+        order={billPreviewOrder}
+        onClose={() => setBillPreviewOrder(null)}
+      />
       <div className="sm:flex sm:items-center sm:justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
         <div className="mt-4 sm:mt-0 flex gap-3">
@@ -234,7 +242,18 @@ const Orders = () => {
                       </div>
                     )}
                   </div>
-                  <div className="ml-4 flex-shrink-0 flex gap-2">
+                  <div className="ml-4 flex-shrink-0 flex flex-wrap justify-end gap-2">
+                    {order.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        onClick={() => setBillPreviewOrder(order)}
+                        className="inline-flex items-center gap-1 px-3 py-1 border border-gray-300 bg-white text-gray-800 text-sm rounded hover:bg-gray-50"
+                        title="Print bill"
+                      >
+                        <PrinterIcon className="h-4 w-4" aria-hidden />
+                        Print bill
+                      </button>
+                    )}
                     {order.status === 'pending' && (
                       <button
                         onClick={() => updateOrderStatus(order.id, 'confirmed')}
